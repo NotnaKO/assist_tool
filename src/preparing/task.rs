@@ -4,31 +4,39 @@ use std::io::BufRead;
 use std::io::Write;
 use std::path::Path;
 
-use anyhow::{ensure, Context};
+use anyhow::{bail, ensure, Context};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Task {
+    pub name: String,
     code_file_name: String,
     notes: NotesVec,
 }
 
 impl Task {
-    pub fn new(project_dir: &Path, task_name: &str, code_file_name: &str) -> anyhow::Result<Self> {
-        let task_dir = project_dir.join("tasks").join(task_name);
-        fs::create_dir_all(&task_dir).context("Can't create task directory")?;
+    pub fn new(
+        project_dir: &Path,
+        task_name: String,
+        code_file_name: String,
+    ) -> anyhow::Result<Self> {
+        let task_dir = project_dir.join("tasks").join(&task_name);
+        fs::create_dir_all(task_dir).context("Can't create task directory")?;
 
         let notes_dir = project_dir.join("notes");
 
         let notes = NotesVec::new(
             notes_dir
-                .with_file_name(task_name)
+                .with_file_name(&task_name)
                 .with_extension("txt")
                 .to_str()
                 .context("Can't convert path")?,
         )?;
 
         Ok(Task {
-            code_file_name: code_file_name.to_string(),
+            name: task_name,
+            code_file_name,
             notes,
         })
     }
@@ -36,15 +44,67 @@ impl Task {
     pub fn add_note(&mut self, note: &str, optional: bool) {
         self.notes.add_note(note, optional);
     }
+
+    pub fn check_environment(&self, project_dir: &Path, create: bool) -> anyhow::Result<()> {
+        let tasks_dir = project_dir.join("tasks").join(&self.name);
+        if !tasks_dir.exists() {
+            if create {
+                fs::create_dir_all(&tasks_dir).context("Can't create task directory")?;
+            } else {
+                bail!("Task directory doesn't exist");
+            }
+        }
+        ensure!(tasks_dir.is_dir(), "Task directory is not a directory");
+
+        let notes_dir = project_dir.join("notes");
+        if !notes_dir.exists() {
+            if create {
+                fs::create_dir_all(&notes_dir).context("Can't create notes directory")?;
+            } else {
+                bail!("Notes directory doesn't exist");
+            }
+        }
+        ensure!(notes_dir.is_dir(), "Notes directory is not a directory");
+
+        let task_code_file = tasks_dir.with_file_name(&self.code_file_name);
+        if !task_code_file.exists() {
+            if create {
+                File::create(&task_code_file).context("Can't create task code file")?;
+            } else {
+                bail!("Task code file doesn't exist");
+            }
+        }
+        ensure!(task_code_file.is_file(), "Task code file is not a file");
+
+        let notes_file = notes_dir.with_file_name(&self.name).with_extension("txt");
+        if !notes_file.exists() {
+            if create {
+                File::create(&notes_file).context("Can't create notes file")?;
+            } else {
+                bail!("Notes file doesn't exist");
+            }
+        }
+        ensure!(notes_file.is_file(), "Notes file is not a file");
+
+        Ok(())
+    }
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(try_from = "&str", into = "String")]
 struct NotesVec {
     /// Path to the display and store notes
     file_name: String,
 
     necessary_notes: Vec<String>,
+
     optional_notes: Vec<String>,
+}
+
+impl From<NotesVec> for String {
+    fn from(value: NotesVec) -> Self {
+        value.file_name
+    }
 }
 
 impl NotesVec {
