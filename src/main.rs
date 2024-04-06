@@ -1,7 +1,7 @@
 use crate::preparing::state::State;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use log::debug;
+use log::{debug, error, info, LevelFilter, trace};
 
 mod preparing;
 
@@ -9,7 +9,7 @@ mod preparing;
 #[command(author, version, about = "A helper tool for preparing C++ course")]
 struct Args {
     /// Path to config of the author and the settings
-    #[arg(long, default_value = "config.json")]
+    #[arg(short, long, default_value = "config.json")]
     config_path: String,
 
     /// Project directory path with structure from README.md
@@ -27,11 +27,7 @@ struct Args {
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Start the review of the task
-    Review {
-        /// Create a task's environment if it doesn't exist
-        #[arg(short, long, default_value = "false")]
-        create_environment: bool,
-    },
+    Review,
 
     /// Add a new task to the project
     Add {
@@ -41,33 +37,35 @@ enum Commands {
     },
 }
 
+
 fn main() -> anyhow::Result<()> {
-    log::set_max_level(log::LevelFilter::Debug);
+    simple_logger::init().unwrap();
+
     let args = Args::parse();
-    debug!("Args: {:?}", args);
+    trace!("Args: {:?}", args);
 
     let mut state =
-        State::load_state(&args.config_path, args.project_dir).context("Can't load state")?;
-    debug!("State load: {:?}", state);
+        State::load_state(args.config_path, args.project_dir).context("Can't load state")?;
+    trace!("State load: {:?}", state);
 
     match args.command {
-        Commands::Review { create_environment } => {
-            debug!(
-                "Review command with create_environment: {}",
-                create_environment
-            );
+        Commands::Review => {
+            trace!("Review command",);
             state
                 .switch_to_task(&args.task)
                 .context("Can't switch to task")?;
-            debug!("State switched to the task: {:?}", state);
+            trace!("State switched to the task: {:?}", state);
             state
-                .check_environment(create_environment)
+                .check_environment(false)
                 .context("Can't check environment")?;
-            debug!("Environment checked");
+            trace!("Environment checked");
         }
         Commands::Add { code_file_name } => {
-            state.add_task(args.task, code_file_name).context("Can't add task")?;
-            state.dump_state()
+            trace!("Add command");
+            state
+                .add_task(args.task, code_file_name)
+                .context("Can't add task")?;
+            state.dump_state()?
         }
     }
     Ok(())

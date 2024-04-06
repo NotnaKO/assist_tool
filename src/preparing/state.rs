@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{bail, ensure, Context};
+use log::trace;
 
 use super::task::Task;
 
@@ -76,6 +77,11 @@ impl State {
 
     /// Add new task
     pub fn add_task(&mut self, task_name: String, code_file_name: String) -> anyhow::Result<()> {
+        trace!(
+            "Start adding task {} with code_file_name {}",
+            task_name,
+            code_file_name
+        );
         let task = Task::new(self.project_dir.as_path(), task_name, code_file_name)?;
         self.tasks.push(task);
         Ok(())
@@ -89,7 +95,7 @@ impl State {
             tasks: self.tasks,
         };
         let value_to_write =
-            serde_json::to_string(&new_config).context("Can't serialize state to json")?;
+            serde_json::to_string_pretty(&new_config).context("Can't serialize state to json")?;
         fs::write(self.config_path, value_to_write).context("Can't write to the config path")
     }
 }

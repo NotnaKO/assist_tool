@@ -5,6 +5,7 @@ use std::io::Write;
 use std::path::Path;
 
 use anyhow::{bail, ensure, Context};
+use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -16,22 +17,31 @@ pub struct Task {
 }
 
 impl Task {
+    /// Create new task (in add task command)
     pub fn new(
         project_dir: &Path,
         task_name: String,
         code_file_name: String,
     ) -> anyhow::Result<Self> {
         let task_dir = project_dir.join("tasks").join(&task_name);
-        fs::create_dir_all(task_dir).context("Can't create task directory")?;
+        fs::create_dir_all(task_dir.as_path()).context("Can't create task directory")?;
+        trace!("Task directory created {}", task_dir.display());
+        
+        let code_file_path = task_dir.join(&code_file_name);
+        File::create_new(code_file_path).context("Can't create new file for code to task")?;
+        trace!("File to code created");
 
         let notes_dir = project_dir.join("notes");
+        fs::create_dir_all(notes_dir.as_path()).context("Can't create notes directory")?;
+        trace!("Notes directory created {}", notes_dir.display());
 
         let notes = NotesVec::new(
             notes_dir
-                .with_file_name(&task_name)
+                .join(&task_name)
                 .with_extension("txt")
                 .to_str()
-                .context("Can't convert path")?,
+                .context("Can't convert path")?
+                .to_string(),
         )?;
 
         Ok(Task {
@@ -91,7 +101,7 @@ impl Task {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(try_from = "&str", into = "String")]
+#[serde(try_from = "String", into = "String")]
 struct NotesVec {
     /// Path to the display and store notes
     file_name: String,
@@ -108,7 +118,7 @@ impl From<NotesVec> for String {
 }
 
 impl NotesVec {
-    fn new(file_name: &str) -> anyhow::Result<Self> {
+    fn new(file_name: String) -> anyhow::Result<Self> {
         file_name.try_into()
     }
 
@@ -148,26 +158,41 @@ impl NotesVec {
     }
 }
 
-impl TryFrom<&str> for NotesVec {
+impl TryFrom<String> for NotesVec {
     type Error = anyhow::Error;
 
-    fn try_from(file_name: &str) -> Result<Self, Self::Error> {
+    fn try_from(file_name: String) -> Result<Self, Self::Error> {
+        trace!("Try to open file: {:?}", &file_name);
         let file = File::options()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
-            .open(file_name)
+            .open(&file_name)
             .expect("Can't open file for notes");
+        trace!("File opened: {:?}", file);
 
         let mut necessary_notes = Vec::new();
         let mut optional_notes = Vec::new();
 
         let mut lines = std::io::BufReader::new(file).lines();
-        ensure!(
-            lines.next().context("Empty file")?? == "Necessary:",
-            "First line should be 'Necessary:'"
-        );
+        match lines.next() {
+            None => {
+                trace!("Empty file");
+                return Ok(NotesVec {
+                    file_name,
+                    necessary_notes,
+                    optional_notes,
+                });
+            }
+            Some(first_line) => {
+                ensure!(
+                    first_line.context("First line read problem")? == "Necessary:",
+                    "First line should be 'Necessary:'"
+                );
+            }
+        };
+        trace!("First line checked");
 
         let mut optional = false;
         for (num, res) in (&mut lines).enumerate() {
@@ -181,6 +206,8 @@ impl TryFrom<&str> for NotesVec {
 
             necessary_notes.push(line.to_string());
         }
+        trace!("Not optional notes read");
+
         if !optional {
             return Ok(NotesVec {
                 file_name: file_name.to_string(),
@@ -196,6 +223,7 @@ impl TryFrom<&str> for NotesVec {
 
             optional_notes.push(line.to_string());
         }
+        trace!("Optional notes read");
 
         Ok(NotesVec {
             file_name: file_name.to_string(),
