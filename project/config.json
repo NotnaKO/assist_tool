@@ -6,11 +6,6 @@
       "name": "tuple",
       "code_file_name": "tuple.hpp",
       "notes": "./notes/tuple.txt"
-    },
-    {
-      "name": "variant",
-      "code_file_name": "variant.hpp",
-      "notes": "./notes/variant.txt"
     }
   ]
 }

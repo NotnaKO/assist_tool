@@ -1,9 +1,11 @@
-use crate::preparing::state::State;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use log::{debug, error, info, LevelFilter, trace};
+use log::{info, trace};
+
+use crate::preparing::context::ProjectContext;
 
 mod preparing;
+mod reviewing;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "A helper tool for preparing C++ course")]
@@ -26,47 +28,57 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Start the review of the task
+    /// Start the reviewing of the task
     Review,
 
     /// Add a new task to the project
     Add {
-        /// Name of file with code to review
+        /// Name of file with code to reviewing
         #[arg(short, long)]
         code_file_name: String,
     },
 }
-
 
 fn main() -> anyhow::Result<()> {
     simple_logger::init().unwrap();
 
     let args = Args::parse();
     trace!("Args: {:?}", args);
+    
 
-    let mut state =
-        State::load_state(args.config_path, args.project_dir).context("Can't load state")?;
-    trace!("State load: {:?}", state);
+    let mut context = ProjectContext::load_state(args.config_path, args.project_dir)
+        .context("Can't load context")?;
+    info!("Context load: {:?}", context);
 
     match args.command {
         Commands::Review => {
-            trace!("Review command",);
-            state
+            info!("Review command",);
+            context
                 .switch_to_task(&args.task)
                 .context("Can't switch to task")?;
-            trace!("State switched to the task: {:?}", state);
-            state
-                .check_environment(false)
-                .context("Can't check environment")?;
-            trace!("Environment checked");
+            trace!("State switched to the task {}", args.task);
+            context.check_task(&args.task).context("Check task fail")?;
+            trace!("Task checked");
+            println!("Start review with task: {}", args.task);
+            start_review(context)?
         }
         Commands::Add { code_file_name } => {
-            trace!("Add command");
-            state
+            info!("Add command");
+            context
                 .add_task(args.task, code_file_name)
                 .context("Can't add task")?;
-            state.dump_state()?
+            context.dump_state()?;
+            println!("Successfully add");
         }
     }
+    Ok(())
+}
+
+pub(crate) fn start_review(context: ProjectContext) -> anyhow::Result<()> {
+    let mut review = reviewing::review::Review::new(context)?;
+    while !review.is_finished() {
+        review.step()?;
+    }
+
     Ok(())
 }
