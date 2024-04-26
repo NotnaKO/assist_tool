@@ -1,11 +1,12 @@
 use std::fs::File;
 use std::io::stdout;
 
-use anyhow::Context;
+use anyhow::{ensure, Context};
 
 use crate::preparing::context::{Author, ProjectContext};
-use crate::preparing::notes::{FileNotesStorage, Note};
+use crate::preparing::notes::FileNotesStorage;
 use crate::preparing::task::Task;
+use crate::reviewing::notes::{parse_type, NoteType, ReviewNote};
 
 #[derive(Debug)]
 pub(crate) struct Review {
@@ -20,30 +21,6 @@ enum ReviewState {
     Start,
     Review,
     Finish,
-}
-
-#[derive(Debug, Clone)]
-struct ReviewNote {
-    text: String,
-    // todo: code_reference?
-}
-
-impl From<String> for ReviewNote {
-    fn from(text: String) -> Self {
-        Self { text }
-    }
-}
-
-impl std::fmt::Display for ReviewNote {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.text)
-    }
-}
-
-impl Note for ReviewNote {
-    fn text(&self) -> &str {
-        &self.text
-    }
 }
 
 enum ReviewAction {
@@ -88,7 +65,7 @@ impl Review {
                     .unwrap_or_else(|err| ReviewAction::Incorrect(err.to_string()));
                 match action {
                     ReviewAction::NewNote(note, optional) => {
-                        self.task.add_note(note.text, optional);
+                        self.task.add_note(note.text_to_storage(), optional);
                         println!("Ok");
                     }
                     ReviewAction::AddNote(note, optional) => {
@@ -130,37 +107,44 @@ impl Review {
         let mut tokens = input.split_whitespace();
         match tokens.next() {
             Some("new") | Some("n") => {
-                let (optional, tokens) = Self::parse_optional(tokens)?;
+                let (note_type, tokens) = parse_type(tokens)?;
+                ensure!(
+                    matches!(note_type, NoteType::Necessary | NoteType::Optional),
+                    "Incorrect note type"
+                );
                 Ok(ReviewAction::NewNote(
-                    ReviewNote {
-                        text: tokens.collect::<Vec<_>>().join(" "),
-                    },
-                    optional,
+                    tokens.collect::<Vec<_>>().join(" ").into(),
+                    matches!(note_type, NoteType::Optional),
                 ))
             }
             Some("add") | Some("a") => {
-                let (optional, tokens) = Self::parse_optional(tokens)?;
-                Ok(ReviewAction::AddNote(
-                    self.find_note(optional, tokens)?,
-                    optional,
-                ))
+                let (note_type, tokens) = parse_type(tokens)?;
+                match note_type {
+                    NoteType::NecessaryWithReference((first, second)) => {
+                        let mut note = self.find_note(false, tokens)?;
+                        let file = self.task.get_file()?;
+                        note.add_code_reference(file, (first, second));
+                        Ok(ReviewAction::AddNote(note, false))
+                    }
+                    NoteType::OptionalWithReference((first, second)) => {
+                        let mut note = self.find_note(true, tokens)?;
+                        let file = self.task.get_file()?;
+                        note.add_code_reference(file, (first, second));
+                        Ok(ReviewAction::AddNote(note, true))
+                    }
+                    NoteType::Necessary => {
+                        Ok(ReviewAction::AddNote(self.find_note(false, tokens)?, false))
+                    }
+                    NoteType::Optional => {
+                        Ok(ReviewAction::AddNote(self.find_note(true, tokens)?, true))
+                    }
+                }
             }
             Some("show") | Some("s") => Ok(ReviewAction::Show),
             Some("complete") | Some("c") => Ok(ReviewAction::Complete),
             Some("drop") | Some("d") => Ok(ReviewAction::Drop),
             _ => Ok(ReviewAction::Incorrect("Unknown action".to_string())),
         }
-    }
-
-    fn parse_optional<'a>(
-        tokens: impl Iterator<Item = &'a str>,
-    ) -> anyhow::Result<(bool, impl Iterator<Item = &'a str>)> {
-        let mut tokens = tokens.peekable();
-        let optional = matches!(*tokens.peek().context("No text in note")?, "optional" | "o");
-        if optional {
-            tokens.next();
-        }
-        Ok((optional, tokens))
     }
 
     fn find_note<'a>(
@@ -173,9 +157,7 @@ impl Review {
             .context("No number in note")?
             .parse()
             .context("Incorrect number of note")?;
-        Ok(ReviewNote {
-            text: self.task.find_note(num, optional)?.to_string(),
-        })
+        Ok(self.task.find_note(num, optional)?.to_string().into())
     }
 
     fn show(&self) {

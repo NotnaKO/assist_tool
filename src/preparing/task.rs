@@ -35,8 +35,8 @@ impl Display for TaskNode {
 }
 
 impl Note for TaskNode {
-    fn text(&self) -> &str {
-        &self.text
+    fn text(&self) -> String {
+        self.text.clone()
     }
 }
 
@@ -83,6 +83,10 @@ impl Task {
             self.notes.find_note(num)
         }
         .context("Note not found")
+    }
+
+    pub fn get_file(&self) -> anyhow::Result<File> {
+        File::open(&self.code_file_name).context("Can't open file with code")
     }
 
     pub(super) fn check_environment(&self, project_dir: &Path) -> anyhow::Result<()> {

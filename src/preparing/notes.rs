@@ -1,13 +1,13 @@
 use anyhow::{ensure, Context};
 use log::trace;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-pub trait Note: Display + Clone + From<String> {
-    fn text(&self) -> &str;
+pub trait Note: Debug + Clone + From<String> {
+    fn text(&self) -> String;
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -75,13 +75,13 @@ impl<N: Note, O: Note> FileNotesStorage<N, O> {
         if !self.necessary_notes.is_empty() {
             writeln!(writer, "Necessary:")?;
             for (num, note) in self.necessary_notes.iter().enumerate() {
-                writeln!(writer, "{}) {}", num, note)?;
+                writeln!(writer, "{}) {}", num, note.text())?;
             }
         }
         if !self.optional_notes.is_empty() {
             writeln!(writer, "Optional:")?;
             for (num, note) in self.optional_notes.iter().enumerate() {
-                writeln!(writer, "{}) {}", num, note)?;
+                writeln!(writer, "{}) {}", num, note.text())?;
             }
         }
         writer.flush()?;

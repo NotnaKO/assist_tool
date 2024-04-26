@@ -3,9 +3,9 @@
   "author_contacts": "@KopanovAnton",
   "tasks": [
     {
-      "name": "tuple",
-      "code_file_name": "tuple.hpp",
-      "notes": "./notes/tuple.txt"
+      "name": "shared_ptr",
+      "code_file_name": "shared_ptr.hpp",
+      "notes": "./notes/shared_ptr.txt"
     }
   ]
 }
