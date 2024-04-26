@@ -44,7 +44,7 @@ enum Commands {
 }
 
 fn main() -> anyhow::Result<()> {
-    simple_logger::init().unwrap();
+    simple_logger::init_with_level(log::Level::Warn).unwrap();
 
     let args = Args::parse();
     trace!("Args: {:?}", args);

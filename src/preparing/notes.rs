@@ -36,7 +36,7 @@ impl<N: Note, O: Note> FileNotesStorage<N, O> {
         let index = line.find(')').context("Incorrect line")?;
         let num_str = &line[..index];
         let num = num_str.parse::<usize>().context("Incorrect number")?;
-        Ok((num, &line[index + 1..]))
+        Ok((num, line[index + 1..].trim()))
     }
 
     pub(crate) fn add_note(&mut self, note: N) {
@@ -136,7 +136,7 @@ impl<N: Note, O: Note> TryFrom<PathBuf> for FileNotesStorage<N, O> {
 
         let mut optional = false;
         for (num, res) in (&mut lines).enumerate() {
-            let line = res?;
+            let line = res?.trim().to_string();
             if line == "Optional:" {
                 optional = true;
                 break;
