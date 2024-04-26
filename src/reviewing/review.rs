@@ -2,9 +2,11 @@ use std::fs::File;
 use std::io::stdout;
 
 use anyhow::{ensure, Context};
+use const_format::{concatcp, str_repeat};
 
 use crate::preparing::context::{Author, ProjectContext};
 use crate::preparing::notes::FileNotesStorage;
+use crate::preparing::task::ShowMethod;
 use crate::preparing::task::Task;
 use crate::reviewing::notes::{parse_type, NoteType, ReviewNote};
 
@@ -30,6 +32,13 @@ enum ReviewAction {
     Drop,
     Complete,
     Incorrect(String),
+}
+
+#[macro_export]
+macro_rules! separator {
+    ($c:literal, $n:literal) => {
+        concatcp!('\n', str_repeat!($c, $n), '\n')
+    };
 }
 
 impl Review {
@@ -62,7 +71,7 @@ impl Review {
             ReviewState::Review => {
                 let action = self
                     .ask_action()
-                    .unwrap_or_else(|err| ReviewAction::Incorrect(err.to_string()));
+                    .unwrap_or_else(|err| ReviewAction::Incorrect(format!("{:#}", err)));
                 match action {
                     ReviewAction::NewNote(note, optional) => {
                         self.task.add_note(note.text_to_storage(), optional);
@@ -79,6 +88,7 @@ impl Review {
                     }
                     ReviewAction::Show => {
                         self.show();
+                        println!("Ok");
                     }
                     ReviewAction::Drop => {
                         self.current_notes.clear();
@@ -161,9 +171,20 @@ impl Review {
     }
 
     fn show(&self) {
-        println!("{}", self.author);
-        let mut writer = std::io::BufWriter::new(stdout());
-        self.current_notes.save_with_writer(&mut writer).unwrap()
+        match &self.task.show_method {
+            ShowMethod::Console => self.show_with_writer(&mut std::io::BufWriter::new(stdout())),
+            ShowMethod::File { file_name } => self.show_with_writer(&mut std::io::BufWriter::new(
+                File::create(file_name).unwrap(),
+            )),
+        }
+    }
+
+    const AUTHOR_SEPARATOR: &'static str = separator!("+", 50);
+
+    fn show_with_writer(&self, writer: &mut impl std::io::Write) {
+        write!(writer, "{}", self.author).unwrap();
+        write!(writer, "{}", Self::AUTHOR_SEPARATOR).unwrap();
+        self.current_notes.save_with_writer(writer).unwrap()
     }
 
     fn finish_review(&mut self) -> anyhow::Result<()> {

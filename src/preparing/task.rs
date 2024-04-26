@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::fs;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, Context};
 use log::trace;
@@ -14,7 +14,14 @@ use crate::preparing::notes::{FileNotesStorage, Note};
 pub(crate) struct Task {
     pub name: String,
     pub code_file_name: String,
+    pub show_method: ShowMethod,
     notes: FileNotesStorage<TaskNode, TaskNode>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) enum ShowMethod {
+    Console,
+    File { file_name: PathBuf },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -46,6 +53,7 @@ impl Task {
         project_dir: &Path,
         task_name: String,
         code_file_name: String,
+        show_method: ShowMethod,
     ) -> anyhow::Result<Self> {
         let task_dir = project_dir.join("tasks").join(&task_name);
         fs::create_dir_all(task_dir.as_path()).context("Can't create task directory")?;
@@ -65,6 +73,7 @@ impl Task {
             name: task_name,
             code_file_name,
             notes,
+            show_method,
         })
     }
 
@@ -86,7 +95,10 @@ impl Task {
     }
 
     pub fn get_file(&self) -> anyhow::Result<File> {
-        File::open(&self.code_file_name).context("Can't open file with code")
+        let file_path = Path::new("tasks")
+            .join(&self.name)
+            .join(&self.code_file_name);
+        File::open(file_path).context("Can't open file with code")
     }
 
     pub(super) fn check_environment(&self, project_dir: &Path) -> anyhow::Result<()> {

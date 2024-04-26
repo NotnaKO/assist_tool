@@ -2,10 +2,5 @@
   "author_name": "Anton Kopanov",
   "author_contacts": "@KopanovAnton",
   "tasks": [
-    {
-      "name": "shared_ptr",
-      "code_file_name": "shared_ptr.hpp",
-      "notes": "./notes/shared_ptr.txt"
-    }
   ]
 }

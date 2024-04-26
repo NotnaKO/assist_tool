@@ -36,6 +36,10 @@ enum Commands {
         /// Name of file with code to reviewing
         #[arg(short, long)]
         code_file_name: String,
+
+        /// File name to show if you want to use file show method
+        #[arg(short, long)]
+        show_file_name: Option<String>,
     },
 }
 
@@ -44,7 +48,6 @@ fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
     trace!("Args: {:?}", args);
-    
 
     let mut context = ProjectContext::load_state(args.config_path, args.project_dir)
         .context("Can't load context")?;
@@ -62,10 +65,24 @@ fn main() -> anyhow::Result<()> {
             println!("Start review with task: {}", args.task);
             start_review(context)?
         }
-        Commands::Add { code_file_name } => {
+        Commands::Add {
+            code_file_name,
+            show_file_name,
+        } => {
             info!("Add command");
+            let show_method = match show_file_name {
+                Some(file_name) => {
+                    let file_name = context
+                        .project_dir
+                        .join("tasks")
+                        .join(args.task.as_str())
+                        .join(file_name);
+                    preparing::task::ShowMethod::File { file_name }
+                }
+                None => preparing::task::ShowMethod::Console,
+            };
             context
-                .add_task(args.task, code_file_name)
+                .add_task(args.task, code_file_name, show_method)
                 .context("Can't add task")?;
             context.dump_state()?;
             println!("Successfully add");

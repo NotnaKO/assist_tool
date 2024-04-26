@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{ensure, Context};
 use log::trace;
 
-use super::task::Task;
+use super::task::{ShowMethod, Task};
 
 #[derive(Debug)]
 pub struct ProjectContext {
@@ -96,13 +96,14 @@ impl ProjectContext {
         &mut self,
         task_name: String,
         code_file_name: String,
+        show_method: ShowMethod
     ) -> anyhow::Result<()> {
         trace!(
             "Start adding task {} with code_file_name {}",
             task_name,
             code_file_name
         );
-        let task = Task::new(self.project_dir.as_path(), task_name, code_file_name)?;
+        let task = Task::new(self.project_dir.as_path(), task_name, code_file_name, show_method)?;
         self.tasks.push(task);
         Ok(())
     }

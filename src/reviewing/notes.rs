@@ -7,6 +7,10 @@ use log::trace;
 
 use crate::preparing::notes::Note;
 
+use crate::separator;
+use const_format::{concatcp, str_repeat};
+
+
 #[derive(Debug, Clone)]
 pub(super) struct ReviewNote {
     text: String,
@@ -64,6 +68,8 @@ impl ReviewNote {
         }
     }
 
+    const NOTE_SEPARATOR: &'static str = separator!("-", 50);
+
     pub fn add_code_reference(&mut self, file: File, row_numbers: (usize, usize)) {
         let text = BufReader::new(file)
             .lines()
@@ -72,7 +78,11 @@ impl ReviewNote {
             .take(row_numbers.1 - row_numbers.0 + 1)
             .map(|(i, line)| format!("{:4}: {}", i + 1, line.unwrap()))
             .join("\n");
-        trace!("Reference added by rows: {}, {}", row_numbers.0, row_numbers.1);
+        trace!(
+            "Reference added by rows: {}, {}",
+            row_numbers.0,
+            row_numbers.1
+        );
         self.references.push(text);
     }
 
@@ -87,15 +97,14 @@ impl From<String> for ReviewNote {
     }
 }
 
-const NOTE_SEPARATOR: &str = "\n-----------------------------\n";
-
 impl Note for ReviewNote {
     fn text(&self) -> String {
         let mut text = self.text.clone();
-        let references = self.references.join(NOTE_SEPARATOR);
+        let references = self.references.join(Self::NOTE_SEPARATOR);
         if !references.is_empty() {
-            text.push_str(NOTE_SEPARATOR);
+            text.push_str(Self::NOTE_SEPARATOR);
             text.push_str(&references);
+            text.push_str(Self::NOTE_SEPARATOR);
         }
         text
     }
