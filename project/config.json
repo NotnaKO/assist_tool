@@ -2,16 +2,15 @@
   "author_name": "Anton Kopanov",
   "author_contacts": "@KopanovAnton",
   "tasks": [
-
     {
-      "name": "s",
-      "code_file_name": "a.hpp",
+      "name": "example",
+      "code_file_name": "example.hpp",
       "show_method": {
         "File": {
-          "file_name": "./tasks/s/a.txt"
+          "file_name": "./tasks/example/example.txt"
         }
       },
-      "notes": "./notes/s.txt"
+      "notes": "./notes/example.txt"
     }
   ]
 }

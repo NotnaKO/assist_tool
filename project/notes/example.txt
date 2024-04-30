@@ -1,0 +1,4 @@
+Necessary:
+0) Не используйте using namespace std;
+Optional:
+0) Для классов, у которых нет наследников, лучше использовать final
