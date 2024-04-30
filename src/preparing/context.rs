@@ -1,3 +1,4 @@
+use std::env::current_dir;
 use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,16 +9,16 @@ use log::trace;
 use super::task::{ShowMethod, Task};
 
 #[derive(Debug)]
-pub struct ProjectContext {
-    pub(crate) author: Author,
-    pub(crate) current_task: Option<usize>,
-    pub(crate) tasks: Vec<Task>,
-    pub(crate) project_dir: PathBuf,
+pub(crate) struct ProjectContext {
+    pub author: Author,
+    pub current_task: Option<usize>,
+    pub tasks: Vec<Task>,
+    pub project_dir: PathBuf,
     config_path: PathBuf,
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
-pub(crate) struct Config {
+struct Config {
     author_name: String,
     author_contacts: String,
     tasks: Vec<Task>,
@@ -29,7 +30,7 @@ impl ProjectContext {
         let project_dir = PathBuf::from(project_dir);
         Self::check_environment(&project_dir)?;
         trace!("Project directories checked");
-        
+
         let config_path = PathBuf::from(config_path);
         trace!("Load state from {}", config_path.display());
         let config = serde_json::from_str::<Config>(
@@ -40,9 +41,26 @@ impl ProjectContext {
             author: Author::new(config.author_name, config.author_contacts),
             current_task: None,
             tasks: config.tasks,
-            project_dir: project_dir.into(),
+            project_dir,
             config_path,
         })
+    }
+
+    pub fn init_state(author: String, contacts: String) -> anyhow::Result<()> {
+        let dir = current_dir().context("Can't get current directory")?;
+        Self::check_environment(&dir)?;
+
+        let config_path = dir.join("config.json");
+
+        let context = Self {
+            author: Author::new(author, contacts),
+            project_dir: dir,
+            config_path,
+            current_task: None,
+            tasks: vec![]
+        };
+        
+        context.dump_state()
     }
 
     /// Set the task to reviewing
@@ -58,7 +76,7 @@ impl ProjectContext {
     }
 
     /// Check the environment for the task
-    pub fn check_environment(project_dir: &Path) -> anyhow::Result<()> {
+    fn check_environment(project_dir: &Path) -> anyhow::Result<()> {
         ensure!(project_dir.exists(), "Project directory doesn't exist");
 
         ensure!(
@@ -96,20 +114,25 @@ impl ProjectContext {
         &mut self,
         task_name: String,
         code_file_name: String,
-        show_method: ShowMethod
+        show_method: ShowMethod,
     ) -> anyhow::Result<()> {
         trace!(
             "Start adding task {} with code_file_name {}",
             task_name,
             code_file_name
         );
-        let task = Task::new(self.project_dir.as_path(), task_name, code_file_name, show_method)?;
+        let task = Task::new(
+            self.project_dir.as_path(),
+            task_name,
+            code_file_name,
+            show_method,
+        )?;
         self.tasks.push(task);
         Ok(())
     }
 
     /// Save the state in the config
-    pub fn dump_state(self) -> anyhow::Result<()> {
+    pub(crate) fn dump_state(self) -> anyhow::Result<()> {
         let new_config = Config {
             author_name: self.author.name,
             author_contacts: self.author.contacts,

@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::stdout;
+use std::io::{stdin, stdout, BufRead, BufReader, StdinLock};
 
 use anyhow::{ensure, Context};
 use const_format::{concatcp, str_repeat};
@@ -16,6 +16,7 @@ pub(crate) struct Review {
     author: Author,
     state: ReviewState,
     current_notes: FileNotesStorage<ReviewNote, ReviewNote>,
+    buf_reader: BufReader<StdinLock<'static>>,
 }
 
 #[derive(Debug)]
@@ -57,6 +58,7 @@ impl Review {
             author: context.author,
             state: ReviewState::Start,
             current_notes: FileNotesStorage::new(notes_file_name)?,
+            buf_reader: BufReader::new(stdin().lock()),
         })
     }
 
@@ -109,9 +111,9 @@ impl Review {
         Ok(())
     }
 
-    fn ask_action(&self) -> anyhow::Result<ReviewAction> {
+    fn ask_action(&mut self) -> anyhow::Result<ReviewAction> {
         let mut input = String::new();
-        std::io::stdin()
+        self.buf_reader
             .read_line(&mut input)
             .context("Reading line fail")?;
         let mut tokens = input.split_whitespace();
